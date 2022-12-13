@@ -58,17 +58,49 @@ function getParams(path) {
 }
 
 function getLoanInfo(params) {
-  const amountInDollars = params.get("amount");
-  const durationInYears = params.get("duration");
+  const amountInDollars = Number(params.get("amount"));
+  const durationInYears = Number(params.get("duration"));
   const monthlyPayments = calculateMonthlyPayments(
     amountInDollars,
     APR,
     durationInYears
   );
-  return `<tr><th>Amount:</th><td>$${amountInDollars}</td></tr>
-  <tr><th>Duration:</th><td>${durationInYears} years</td></tr>
-  <tr><th>APR:</th><td>${APR}%</td></tr>
-  <tr><th>Monthly payment:</th><td>$${monthlyPayments}</td></tr>`;
+  return `<tr>
+                  <th>Amount:</th>
+                    <td>
+                      <a href='/?amount=${
+                        amountInDollars - 100
+                      }&duration=${durationInYears}'>- $100</a>
+                    </td>
+                    <td>$${amountInDollars}</td>
+                    <td>
+                      <a href='/?amount=${
+                        amountInDollars + 100
+                      }&duration=${durationInYears}'>+ $100</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Duration:</th>
+                    <td>
+                      <a href='/?amount=${amountInDollars}&duration=${
+    durationInYears - 1
+  }'>- 1 year</a>
+                    </td>
+                    <td>${durationInYears} years</td>
+                    <td>
+                      <a href='/?amount=${amountInDollars}&duration=${
+    durationInYears + 1
+  }'>+ 1 year</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>APR:</th>
+                    <td colspan='3'>${APR}%</td>
+                  </tr>
+                  <tr>
+                    <th>Monthly payment:</th>
+                    <td colspan='3'>$${monthlyPayments}</td>
+                  </tr>`;
 }
 
 function calculateMonthlyPayments(amountInDollars, APR, durationInYears) {
