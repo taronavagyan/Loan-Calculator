@@ -5,52 +5,85 @@ const URL = require("url").URL;
 const PORT = 3000;
 const APR = 5;
 
-const HTML_START = `
+const TEMPLATE = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <title>Loan Calculator</title>
     <style type="text/css">
-    body {
-      background: rgba(250, 250, 250);
-      font-family: sans-serif;
-      color: rgb(50, 50, 50);
-    }
+      body {
+        background: rgba(250, 250, 250);
+        font-family: sans-serif;
+        color: rgb(50, 50, 50);
+      }
 
-    article {
-      width: 100%;
-      max-width: 40rem;
-      margin: 0 auto;
-      padding: 1rem 2rem;
-    }
+      article {
+        width: 100%;
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 1rem 2rem;
+      }
 
-    h1 {
-      font-size: 2.5rem;
-      text-align: center;
-    }
+      h1 {
+        font-size: 2.5rem;
+        text-align: center;
+      }
 
-    table {
-      font-size: 2rem;
-    }
-
-    th {
-      text-align: right;
-    }
-  </style>
+      table {
+        font-size: 1.5rem;
+      }
+      th {
+        text-align: right;
+      }
+      td {
+        text-align: center;
+      }
+      th,
+      td {
+        padding: 0.5rem;
+      }
+    </style>
   </head>
   <body>
     <article>
       <h1>Loan Calculator</h1>
       <table>
-        <tbody>`;
-
-const HTML_END = `
+        <tbody>
+          <tr>
+            <th>Amount:</th>
+            <td>
+              <a href='/?amount=${amount - 100}&duration=${duration}'>- $100</a>
+            </td>
+            <td>$${amount}</td>
+            <td>
+              <a href='/?amount=${amount + 100}&duration=${duration}'>+ $100</a>
+            </td>
+          </tr>
+          <tr>
+            <th>Duration:</th>
+            <td>
+              <a href='/?amount=${amount}&duration=${duration - 1}'>- 1 year</a>
+            </td>
+            <td>${duration} years</td>
+            <td>
+              <a href='/?amount=${amount}&duration=${duration + 1}'>+ 1 year</a>
+            </td>
+          </tr>
+          <tr>
+            <th>APR:</th>
+            <td colspan='3'>${APR}%</td>
+          </tr>
+          <tr>
+            <th>Monthly payment:</th>
+            <td colspan='3'>$${payment}</td>
+          </tr>
         </tbody>
       </table>
     </article>
   </body>
-</html>`;
+</html>
+`;
 
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
@@ -58,49 +91,14 @@ function getParams(path) {
 }
 
 function getLoanInfo(params) {
-  const amountInDollars = Number(params.get("amount"));
-  const durationInYears = Number(params.get("duration"));
-  const monthlyPayments = calculateMonthlyPayments(
+  const amount = Number(params.get("amount"));
+  const duration = Number(params.get("duration"));
+  const payment = calculateMonthlyPayments(
     amountInDollars,
     APR,
     durationInYears
   );
-  return `<tr>
-                  <th>Amount:</th>
-                    <td>
-                      <a href='/?amount=${
-                        amountInDollars - 100
-                      }&duration=${durationInYears}'>- $100</a>
-                    </td>
-                    <td>$${amountInDollars}</td>
-                    <td>
-                      <a href='/?amount=${
-                        amountInDollars + 100
-                      }&duration=${durationInYears}'>+ $100</a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>Duration:</th>
-                    <td>
-                      <a href='/?amount=${amountInDollars}&duration=${
-    durationInYears - 1
-  }'>- 1 year</a>
-                    </td>
-                    <td>${durationInYears} years</td>
-                    <td>
-                      <a href='/?amount=${amountInDollars}&duration=${
-    durationInYears + 1
-  }'>+ 1 year</a>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th>APR:</th>
-                    <td colspan='3'>${APR}%</td>
-                  </tr>
-                  <tr>
-                    <th>Monthly payment:</th>
-                    <td colspan='3'>$${monthlyPayments}</td>
-                  </tr>`;
+  return TEMPLATE;
 }
 
 function calculateMonthlyPayments(amountInDollars, APR, durationInYears) {
