@@ -3,9 +3,9 @@
 const HTTP = require("http");
 const URL = require("url").URL;
 const PORT = 3000;
-const APR = 5;
+const HANDLEBARS = require("handlebars");
 
-const TEMPLATE = `
+const SOURCE = `
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -53,30 +53,30 @@ const TEMPLATE = `
           <tr>
             <th>Amount:</th>
             <td>
-              <a href='/?amount=${amount - 100}&duration=${duration}'>- $100</a>
+              <a href='/?amount={{amountDecrement}}&duration={{duration}}'>- $100</a>
             </td>
-            <td>$${amount}</td>
+            <td>$ {{amount}}</td>
             <td>
-              <a href='/?amount=${amount + 100}&duration=${duration}'>+ $100</a>
+              <a href='/?amount={{amountIncrement}}&duration={{duration}}'>+ $100</a>
             </td>
           </tr>
           <tr>
             <th>Duration:</th>
             <td>
-              <a href='/?amount=${amount}&duration=${duration - 1}'>- 1 year</a>
+              <a href='/?amount={{amount}}&duration={{durationDecrement}}'>- 1 year</a>
             </td>
-            <td>${duration} years</td>
+            <td>{{duration}} years</td>
             <td>
-              <a href='/?amount=${amount}&duration=${duration + 1}'>+ 1 year</a>
+              <a href='/?amount={{amount}}&duration={{durationIncrement}}'>+ 1 year</a>
             </td>
           </tr>
           <tr>
             <th>APR:</th>
-            <td colspan='3'>${APR}%</td>
+            <td colspan='3'>{{apr}}%</td>
           </tr>
           <tr>
             <th>Monthly payment:</th>
-            <td colspan='3'>$${payment}</td>
+            <td colspan='3'>$ {{payment}}</td>
           </tr>
         </tbody>
       </table>
@@ -85,44 +85,56 @@ const TEMPLATE = `
 </html>
 `;
 
+const LOAN_OFFER_TEMPLATE = HANDLEBARS.compile(SOURCE);
+
+function render(template, data) {
+  let html = template(data);
+  return html;
+}
+
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
   return myURL.searchParams;
 }
 
 function getLoanInfo(params) {
-  const amount = Number(params.get("amount"));
-  const duration = Number(params.get("duration"));
-  const payment = calculateMonthlyPayments(
-    amountInDollars,
-    APR,
-    durationInYears
-  );
-  return TEMPLATE;
+  const APR = 5;
+  let data = {};
+
+  data.amount = Number(params.get("amount"));
+  data.amountIncrement = data.amount + 100;
+  data.amountDecrement = data.amount - 100;
+  data.duration = Number(params.get("duration"));
+  data.durationIncrement = data.duration + 1;
+  data.durationDecrement = data.duration - 1;
+  data.apr = APR;
+  data.payment = calculatePayments(data.amount, APR, data.duration);
+
+  return data;
 }
 
-function calculateMonthlyPayments(amountInDollars, APR, durationInYears) {
+function calculatePayments(amount, APR, durationInYears) {
   const monthlyInterest = APR / 100 / 12;
   const durationInMonths = durationInYears * 12;
-  return (
-    amountInDollars *
-    (monthlyInterest / (1 - Math.pow(1 + monthlyInterest, -durationInMonths)))
-  ).toFixed(2);
+  let payment =
+    amount *
+    (monthlyInterest / (1 - Math.pow(1 + monthlyInterest, -durationInMonths)));
+  return payment.toFixed(2);
 }
 
 const SERVER = HTTP.createServer((req, res) => {
   let path = req.url;
 
-  let HTML_MIDDLE = getLoanInfo(getParams(path));
-  let content = HTML_START + HTML_MIDDLE + HTML_END;
-
   if (path === "/favicon.ico") {
-    res.statusCode = 404;
+    res.statusCode = 400;
     res.end();
   } else {
+    let data = getLoanInfo(getParams(path));
+    let content = render(LOAN_OFFER_TEMPLATE, data);
+
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html");
-    res.write(content);
+    res.write(`${content}\n`);
     res.end();
   }
 });
