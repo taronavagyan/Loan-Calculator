@@ -3,21 +3,12 @@
 const HTTP = require("http");
 const URL = require("url").URL;
 const QUERYSTRING = require("querystring");
-const PATH = require("path");
-const FS = require("fs");
 const ROUTER = require("router");
 const FINALHANDLER = require("finalhandler");
+const SERVESTATIC = require("serve-static");
 const PORT = 3000;
 const HANDLEBARS = require("handlebars");
-const { createBrotliCompress } = require("zlib");
 const APR = 5;
-const MIME_TYPES = {
-  ".css": "text/css",
-  ".js": "application/javascript",
-  ".jpg": "image/jpeg",
-  ".png": "image/png",
-  ".ico": "image/x-icon",
-};
 
 const LOAN_OFFER_SOURCE = `
 <!DOCTYPE html>
@@ -104,7 +95,6 @@ function parseFormData(request, callback) {
     body += chunk.toString();
   });
   request.on("end", () => {
-    console.log(body);
     let data = QUERYSTRING.parse(body);
     data.amount = Number(data.amount);
     data.duration = Number(data.duration);
@@ -136,7 +126,7 @@ function calculatePayments(amount, APR, durationInYears) {
   return payment.toFixed(2);
 }
 
-function getLoanInfo(data) {
+function createLoanOffer(data) {
   data.amountIncrement = data.amount + 100;
   data.amountDecrement = data.amount - 100;
   data.durationIncrement = data.duration + 1;
@@ -147,28 +137,31 @@ function getLoanInfo(data) {
   return data;
 }
 
-function getIndex(res) {
+let router = ROUTER();
+router.use(SERVESTATIC("public"));
+
+router.get("/", function (req, res) {
   let content = render(LOAN_FORM_TEMPLATE, { apr: APR });
 
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html");
   res.write(`${content}\n`);
   res.end();
-}
+});
 
-function getLoanOffer(res, path) {
-  let data = getLoanInfo(getParams(path));
+router.get("/loan-offer", function (req, res) {
+  let data = createLoanOffer(getParams(path));
   let content = render(LOAN_OFFER_TEMPLATE, data);
 
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html");
   res.write(`${content}\n`);
   res.end();
-}
+});
 
-function postLoanOffer(req, res) {
+router.post("/loan-offer", function (req, res) {
   parseFormData(req, (parsedData) => {
-    let data = getLoanInfo(parsedData);
+    let data = createLoanOffer(parsedData);
     let content = render(LOAN_OFFER_TEMPLATE, data);
 
     res.status = 200;
@@ -176,33 +169,14 @@ function postLoanOffer(req, res) {
     res.write(`${content}\n`);
     res.end();
   });
-}
+});
 
+router.get("*", function (req, res) {
+  res.statusCode = 404;
+  res.end();
+});
 const SERVER = HTTP.createServer((req, res) => {
-  let path = req.url;
-  let pathname = getPathname(path);
-  let fileExtension = PATH.extname(pathname);
-
-  FS.readFile(`./public/${pathname}`, (err, data) => {
-    if (data) {
-      res.statusCode = 200;
-      res.setHeader("Content-Type", `${MIME_TYPES[fileExtension]}`);
-      res.write(`${data}\n`);
-      res.end();
-    } else {
-      let method = req.method;
-      if (method === "GET" && pathname === "/") {
-        getIndex(res);
-      } else if (method === "GET" && pathname === "/loan-offer") {
-        getLoanOffer(res, path);
-      } else if (method === "POST" && pathname === "/loan-offer") {
-        postLoanOffer(req, res);
-      } else {
-        res.statusCode = 400;
-        res.end();
-      }
-    }
-  });
+  router(req, res, FINALHANDLER(req, res));
 });
 
 SERVER.listen(PORT, () => {
