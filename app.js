@@ -2,10 +2,12 @@
 
 const HTTP = require("http");
 const URL = require("url").URL;
+const QUERYSTRING = require("querystring");
 const PATH = require("path");
 const FS = require("fs");
 const PORT = 3000;
 const HANDLEBARS = require("handlebars");
+const { createBrotliCompress } = require("zlib");
 const APR = 5;
 const MIME_TYPES = {
   ".css": "text/css",
@@ -73,7 +75,7 @@ const LOAN_FORM_SOURCE = `<!DOCTYPE html>
   <body>
     <article>
       <h1>Loan Calculator</h1>
-      <form action="/loan-offer" method="get">
+      <form action="/loan-offer" method="post">
         <p>All loans are offered at an APR of {{apr}}%.</p>
         <label for="amount">How much do you want to borrow (in dollars)?</label>
         <input type="number" name="amount" value="">
@@ -94,29 +96,33 @@ function render(template, data) {
   return html;
 }
 
+function parseFormData(request, callback) {
+  let body = "";
+  request.on("data", (chunk) => {
+    body += chunk.toString();
+  });
+  request.on("end", () => {
+    console.log(body);
+    let data = QUERYSTRING.parse(body);
+    data.amount = Number(data.amount);
+    data.duration = Number(data.duration);
+    callback(data);
+  });
+}
+
 function getParams(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
-  return myURL.searchParams;
+  let searchParams = myURL.searchParams;
+  let data = {};
+  data.amount = Number(searchParams.get("amount"));
+  data.duration = Number(searchParams.get("duration"));
+
+  return data;
 }
 
 function getPathname(path) {
   const myURL = new URL(path, `http://localhost:${PORT}`);
   return myURL.pathname;
-}
-
-function getLoanInfo(params) {
-  let data = {};
-
-  data.amount = Number(params.get("amount"));
-  data.amountIncrement = data.amount + 100;
-  data.amountDecrement = data.amount - 100;
-  data.duration = Number(params.get("duration"));
-  data.durationIncrement = data.duration + 1;
-  data.durationDecrement = data.duration - 1;
-  data.apr = APR;
-  data.payment = calculatePayments(data.amount, APR, data.duration);
-
-  return data;
 }
 
 function calculatePayments(amount, APR, durationInYears) {
@@ -126,6 +132,17 @@ function calculatePayments(amount, APR, durationInYears) {
     amount *
     (monthlyInterest / (1 - Math.pow(1 + monthlyInterest, -durationInMonths)));
   return payment.toFixed(2);
+}
+
+function getLoanInfo(data) {
+  data.amountIncrement = data.amount + 100;
+  data.amountDecrement = data.amount - 100;
+  data.durationIncrement = data.duration + 1;
+  data.durationDecrement = data.duration - 1;
+  data.apr = APR;
+  data.payment = calculatePayments(data.amount, APR, data.duration);
+
+  return data;
 }
 
 const SERVER = HTTP.createServer((req, res) => {
@@ -140,14 +157,15 @@ const SERVER = HTTP.createServer((req, res) => {
       res.write(`${data}\n`);
       res.end();
     } else {
-      if (pathname === "/") {
+      let method = req.method;
+      if (method === "GET" && pathname === "/") {
         let content = render(LOAN_FORM_TEMPLATE, { apr: APR });
 
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html");
         res.write(`${content}\n`);
         res.end();
-      } else if (pathname === "/loan-offer") {
+      } else if (method === "GET" && pathname === "/loan-offer") {
         let data = getLoanInfo(getParams(path));
         let content = render(LOAN_OFFER_TEMPLATE, data);
 
@@ -155,6 +173,16 @@ const SERVER = HTTP.createServer((req, res) => {
         res.setHeader("Content-Type", "text/html");
         res.write(`${content}\n`);
         res.end();
+      } else if (method === "POST" && pathname === "/loan-offer") {
+        parseFormData(req, (parsedData) => {
+          let data = getLoanInfo(parsedData);
+          let content = render(LOAN_OFFER_TEMPLATE, data);
+
+          res.status = 200;
+          res.setHeader("Content-Type", "text/html");
+          res.write(`${content}\n`);
+          res.end();
+        });
       } else {
         res.statusCode = 400;
         res.end();
