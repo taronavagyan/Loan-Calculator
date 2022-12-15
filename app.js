@@ -2,9 +2,18 @@
 
 const HTTP = require("http");
 const URL = require("url").URL;
+const PATH = require("path");
+const FS = require("fs");
 const PORT = 3000;
 const HANDLEBARS = require("handlebars");
 const APR = 5;
+const MIME_TYPES = {
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+};
 
 const LOAN_OFFER_SOURCE = `
 <!DOCTYPE html>
@@ -122,26 +131,36 @@ function calculatePayments(amount, APR, durationInYears) {
 const SERVER = HTTP.createServer((req, res) => {
   let path = req.url;
   let pathname = getPathname(path);
+  let fileExtension = PATH.extname(pathname);
 
-  if (pathname === "/") {
-    let content = render(LOAN_FORM_TEMPLATE, { apr: APR });
+  FS.readFile(`./public/${pathname}`, (err, data) => {
+    if (data) {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", `${MIME_TYPES[fileExtension]}`);
+      res.write(`${data}\n`);
+      res.end();
+    } else {
+      if (pathname === "/") {
+        let content = render(LOAN_FORM_TEMPLATE, { apr: APR });
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "text/html");
-    res.write(`${content}\n`);
-    res.end();
-  } else if (pathname === "/loan-offer") {
-    let data = getLoanInfo(getParams(path));
-    let content = render(LOAN_OFFER_TEMPLATE, data);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html");
+        res.write(`${content}\n`);
+        res.end();
+      } else if (pathname === "/loan-offer") {
+        let data = getLoanInfo(getParams(path));
+        let content = render(LOAN_OFFER_TEMPLATE, data);
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "text/html");
-    res.write(`${content}\n`);
-    res.end();
-  } else {
-    res.statusCode = 400;
-    res.end();
-  }
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/html");
+        res.write(`${content}\n`);
+        res.end();
+      } else {
+        res.statusCode = 400;
+        res.end();
+      }
+    }
+  });
 });
 
 SERVER.listen(PORT, () => {
